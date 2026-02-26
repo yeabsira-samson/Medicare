@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from "react";
 import { ToastProvider, useToast } from "../component/layout/notif";
-import { useAuth } from "../hooks/userAuth"; // ADD THIS IMPORT
+import { useAuth } from "../hooks/userAuth"; 
 
 interface MedicareRow {
   [key: string]: any;
@@ -20,7 +20,7 @@ function MedicareInfoContent() {
     showSuccessAlert 
   } = useToast();
   
-  // ADD THIS LINE - get auth state
+
   const { isLoggedIn } = useAuth();
   
   const [results, setResults] = useState<SearchResult>({ matchedProcedures: [] });
@@ -32,12 +32,10 @@ function MedicareInfoContent() {
   const [error, setError] = useState<string | null>(null);
   const [favoriteAdded, setFavoriteAdded] = useState<string | null>(null);
 
-  // Load favorites from localStorage on mount
   useEffect(() => {
     loadFavorites();
   }, []);
 
-  // Clear results when search term is empty
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setResults({ matchedProcedures: [] });
@@ -48,20 +46,17 @@ function MedicareInfoContent() {
 
   const loadFavorites = async () => {
     try {
-      // Load from localStorage first for immediate display
       const saved = localStorage.getItem("favorites");
       if (saved) {
         setFavorites(JSON.parse(saved));
       }
 
-      // Then try to load from database (you'll need to implement this API)
       const email = sessionStorage.getItem('email');
       if (email) {
         const response = await fetch(`/api/favorites?email=${encodeURIComponent(email)}`);
         if (response.ok) {
           const data = await response.json();
           setFavorites(data.favorites || []);
-          // Update localStorage with database data
           localStorage.setItem("favorites", JSON.stringify(data.favorites || []));
         }
       }
@@ -70,12 +65,9 @@ function MedicareInfoContent() {
     }
   };
 
-  // Save favorites to both localStorage and database
   const saveFavorites = async (updatedFavorites: MedicareRow[]) => {
-    // Save to localStorage
     localStorage.setItem("favorites", JSON.stringify(updatedFavorites));
     
-    // Save to database if user is logged in
     const email = sessionStorage.getItem('email');
     if (email) {
       try {
@@ -137,7 +129,6 @@ function MedicareInfoContent() {
   };
 
   const addFavorite = async (row: MedicareRow): Promise<void> => {
-    // ADD THIS CHECK - only allow if logged in
     if (!isLoggedIn) {
       alert('Please log in to add favorites');
       return;
@@ -150,7 +141,7 @@ function MedicareInfoContent() {
       _displayName: getDisplayName(row),
       _chargeAmount: chargePrice ? chargePrice.amount : 0,
       addedAt: new Date().toISOString(),
-      favoriteId: uniqueId(row) // Add a unique ID for the favorite
+      favoriteId: uniqueId(row) 
     };
 
     const isDuplicate = favorites.some(f => {
@@ -165,28 +156,16 @@ function MedicareInfoContent() {
 
     const updatedFavorites = [...favorites, rowWithPrice];
     
-    // Update state
+
     setFavorites(updatedFavorites);
     setFavoriteAdded(uniqueId(row));
     
-    // Save to both localStorage and database
     await saveFavorites(updatedFavorites);
     
-    // Show success message (you'll need to add this to your toast provider)
     if (showSuccessAlert) {
       showSuccessAlert('Added to favorites!');
     }
   };
-
-  // const removeFavorite = async (favoriteId: string) => {
-  //   const updatedFavorites = favorites.filter(f => uniqueId(f) !== favoriteId);
-    
-  //   // Update state
-  //   setFavorites(updatedFavorites);
-    
-  //   // Save to both localStorage and database
-  //   await saveFavorites(updatedFavorites);
-  // };
 
   const getDisplayName = (row: MedicareRow): string => {
     const nameFields = ['Type_of_Service ', 'Type of Service', 'Place of Service', 'Place_of_Service'];
