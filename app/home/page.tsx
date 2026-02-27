@@ -15,9 +15,8 @@ interface SearchResult {
 function MedicareInfoContent() {
   const { 
     showEmptySearchAlert,
-    showFavoritesAlert,
-    showNoMatchesAlert,
-    showSuccessAlert 
+    showSuccessAlert,
+    showNoMatchesAlert
   } = useToast();
   
 
@@ -31,18 +30,89 @@ function MedicareInfoContent() {
   const [hasSearched, setHasSearched] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [favoriteAdded, setFavoriteAdded] = useState<string | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
 
   useEffect(() => {
-    loadFavorites();
+    const loadSavedState = async () => {
+      await loadFavorites();
+      
+      try {
+        const savedSearchTerm = sessionStorage.getItem('medicareSearchTerm');
+        const savedResults = sessionStorage.getItem('medicareResults');
+        const savedHasSearched = sessionStorage.getItem('medicareHasSearched');
+        
+        console.log('Loading from sessionStorage:', {
+          savedSearchTerm,
+          hasSavedResults: !!savedResults,
+          savedHasSearched
+        });
+        
+        if (savedSearchTerm) {
+          setSearchTerm(savedSearchTerm);
+        }
+        
+        if (savedResults) {
+          try {
+            const parsedResults = JSON.parse(savedResults);
+            console.log('Setting results to:', parsedResults);
+            setResults(parsedResults);
+          } catch (e) {
+            console.error("Error parsing saved results:", e);
+          }
+        }
+        
+        if (savedHasSearched) {
+          setHasSearched(savedHasSearched === 'true');
+        }
+      } catch (error) {
+        console.error("Error loading saved state:", error);
+      } finally {
+        setInitialLoadComplete(true);
+      }
+    };
+    
+    loadSavedState();
   }, []);
 
   useEffect(() => {
-    if (searchTerm.trim() === '') {
+    if (initialLoadComplete) {
+      if (searchTerm) {
+        sessionStorage.setItem('medicareSearchTerm', searchTerm);
+        console.log('Saved search term:', searchTerm);
+      } else {
+        sessionStorage.removeItem('medicareSearchTerm');
+      }
+    }
+  }, [searchTerm, initialLoadComplete]);
+
+  useEffect(() => {
+    if (initialLoadComplete) {
+      if (results.matchedProcedures.length > 0) {
+        try {
+          sessionStorage.setItem('medicareResults', JSON.stringify(results));
+          console.log('Saved results with', results.matchedProcedures.length, 'items');
+        } catch (e) {
+          console.error("Error saving results to sessionStorage:", e);
+        }
+      } else {
+        sessionStorage.removeItem('medicareResults');
+      }
+    }
+  }, [results, initialLoadComplete]);
+
+  useEffect(() => {
+    if (initialLoadComplete) {
+      sessionStorage.setItem('medicareHasSearched', String(hasSearched));
+    }
+  }, [hasSearched, initialLoadComplete]);
+
+  useEffect(() => {
+    if (searchTerm.trim() === '' && initialLoadComplete) {
       setResults({ matchedProcedures: [] });
       setHasSearched(false);
       setError(null);
     }
-  }, [searchTerm]);
+  }, [searchTerm, initialLoadComplete]);
 
   const loadFavorites = async () => {
     try {
@@ -150,7 +220,6 @@ function MedicareInfoContent() {
     });
 
     if (isDuplicate) {
-      showFavoritesAlert();
       return;
     }
 
@@ -163,7 +232,7 @@ function MedicareInfoContent() {
     await saveFavorites(updatedFavorites);
     
     if (showSuccessAlert) {
-      showSuccessAlert('Added to favorites!');
+      showSuccessAlert();
     }
   };
 
@@ -237,6 +306,11 @@ function MedicareInfoContent() {
     setResults({ matchedProcedures: [] });
     setHasSearched(false);
     setError(null);
+    
+  
+    sessionStorage.removeItem('medicareSearchTerm');
+    sessionStorage.removeItem('medicareResults');
+    sessionStorage.removeItem('medicareHasSearched');
   };
 
   return (
@@ -247,7 +321,7 @@ function MedicareInfoContent() {
             Medicare Price & Payment Explorer
           </h1>
           <p className="text-sm sm:text-base text-gray-500 mt-1 sm:mt-2 px-2">
-            Search by specialty or service to see Medicare payment amounts
+            Search by specialty,service or price range to see Medicare payment amounts
           </p>
         </div>
 
@@ -256,7 +330,7 @@ function MedicareInfoContent() {
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="Search by specialty or type of service"
+                placeholder="Search by specialty,type of service or price range"
                 value={searchTerm}
                 onChange={handleSearchChange}
                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && searchProvider()}
@@ -314,42 +388,43 @@ function MedicareInfoContent() {
                 return (
                   <div 
                     key={row._id?.toString() || i} 
-                    className="p-4 sm:p-5 bg-white rounded-xl hover:shadow-lg transition border border-gray-200"
+                    className="p-4 sm:p-5 bg-white rounded-xl hover:shadow-lg transition border border-gray-200 flex flex-col h-full"
                   >
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-0">
-                      <div className="flex-1 w-full sm:w-auto">
-                        <div className="flex items-center flex-wrap gap-2 mb-3">
-                          <h3 className="font-bold text-gray-800 text-base sm:text-lg md:text-xl">{displayName}</h3>
-                        </div>
-                        
-                        {allowedCharges ? (
-                          <div className="mb-4 p-4 sm:p-5 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border-2 border-green-200">
-                            <p className="text-xs sm:text-sm text-gray-600 mb-1 font-medium">Allowed Charges Per Person</p>
-                            <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-green-700 break-words">
-                              {allowedCharges.formatted}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="mb-4 p-4 sm:p-5 bg-gray-50 rounded-xl border border-gray-200">
-                            <p className="text-xs sm:text-sm text-gray-500">No charge data available</p>
-                          </div>
-                        )}
+                    <div className="flex-1">
+                      <div className="flex items-center flex-wrap gap-2 mb-3">
+                        <h3 className="font-bold text-gray-800 text-base sm:text-lg md:text-xl">{displayName}</h3>
                       </div>
+                      
+                      {allowedCharges ? (
+                        <div className="mb-4 p-4 sm:p-5 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border-2 border-green-200">
+                          <p className="text-xs sm:text-sm text-gray-600 mb-1 font-medium">Allowed Charges Per Person</p>
+                          <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-green-700 break-words">
+                            {allowedCharges.formatted}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mb-4 p-4 sm:p-5 bg-gray-50 rounded-xl border border-gray-200">
+                          <p className="text-xs sm:text-sm text-gray-500">No charge data available</p>
+                        </div>
+                      )}
+                    </div>
 
                     
+                    <div className="mt-4 flex justify-end">
                       <button
                         onClick={() => addFavorite(row)}
-                        disabled={favoriteStatus}
+                        disabled={favoriteStatus || !isLoggedIn}
                         className={`w-full sm:w-auto px-4 py-2 rounded-lg transition whitespace-nowrap text-sm font-medium shadow-md hover:shadow-lg ${
                           favoriteStatus 
                             ? 'bg-gray-400 cursor-not-allowed' 
                             : !isLoggedIn
-                              ? 'bg-gray-400 cursor-not-allowed opacity-70'
+                              ? 'bg-gray-300 cursor-not-allowed opacity-70 border border-gray-400' 
                               : 'bg-blue-600 hover:bg-blue-700 text-white'
                         }`}
+                        title={!isLoggedIn ? "Please log in to save favorites" : ""}
                       >
                         {!isLoggedIn 
-                          ? 'Login to add to favorite' 
+                          ? 'Login to save' 
                           : favoriteStatus 
                             ? 'In Favorites' 
                             : 'Add to favorite'

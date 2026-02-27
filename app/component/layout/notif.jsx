@@ -146,9 +146,12 @@ const showDeleteAlert = useCallback(() => {
   }, [showToast]);
 
   const showSignUpAlert = useCallback(() => {
-    showToast('info', 'Sign up succesfully');
+    showToast('info', 'Sign up successful');
   }, [showToast]);
 
+  const showSuccessAlert =useCallback(()=>{
+    showToast('info','Added to favorites!');
+  },[showToast]);
 
   const showAlert = useCallback((type, message) => {
     showToast(type, message);
@@ -163,6 +166,7 @@ const showDeleteAlert = useCallback(() => {
       showNoMatchesAlert,
       showLoginAlert,
       showUpdateAlert,
+      showSuccessAlert,
       showSignUpAlert
     }}>
       {children}
